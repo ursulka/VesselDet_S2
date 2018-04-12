@@ -1,4 +1,9 @@
-#Code for land mask creation on Sentinel-2 images (batch mode)
+#' @title Land mask for vessel detection on Sentinel-2 images (batch mode)
+#' @description First step of the automatic vessel detection/classification procedure, where land areas on Sentinel-2 (Level 1C) images are removed 
+#' @author Ursa Kanjir
+#' @date "'r format(Sys.Date())'"
+#' @return a raster image with land areas (larger cloud areas also) removed, only sea areas left for further processing 
+
 library(raster)
 library(rgdal)
 library(gdalUtils)
@@ -21,9 +26,9 @@ locmin <- function(band)
 }
 #----------------------
 
-mainDir <- "define your directory"
+mainDir <- "define your directory where your Sentinel-2 data is stored"
 setwd(mainDir)
-outDir <- "define your directory"
+outDir <- "define your directory where you want to save your land masks"
 ptm <- proc.time()
 
 s2.folders <- list.files(mainDir)
