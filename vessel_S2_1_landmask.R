@@ -16,14 +16,14 @@ locmin <- function(band)
   tab_pnts_x <- tab_pnts[,1]
   thresh_x <- tab_pnts_x < 0.7 & tab_pnts_x > 0
   
-  threshold <- min(tab_pnts[thresh_x,1])  #to sem spremenila v 1, prej je blo 2! 
+  threshold <- min(tab_pnts[thresh_x,1]) 
   return(threshold)
 }
 #----------------------
 
-mainDir <- "d:/data/S2_doktorat_ladje/"
+mainDir <- "define your directory"
 setwd(mainDir)
-outDir <- ("d:/DoKtoRaT/output/")
+outDir <- "define your directory"
 ptm <- proc.time()
 
 s2.folders <- list.files(mainDir)
