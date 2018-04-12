@@ -5,4 +5,4 @@ Vessel detection and classification algorithm from Sentinel-2 images in R
 
 This algorithm is adapted and tested on Level 1C Sentinel-2 images. The results using Level 2A might differ (worsen) due to other values of pixels. 
 
-The paper where complete procedure is described is currently under review and is titled "How can Sentinel-2 images assist humanitarian actions to help reduce the loss of life in the Mediterranean Sea?"
+The paper where complete procedure is described more in detail is currently under review and is titled "How can Sentinel-2 images assist humanitarian actions to help reduce the loss of life in the Mediterranean Sea?"
