@@ -9,23 +9,6 @@ library(rgdal)
 library(gdalUtils)
 library(pastecs)
 
-#-----Function for finding local minima in ndwi----------
-locmin <- function(band) 
-{
-  dens_band <- density(band)
-  ts_y <- ts(dens_band$y)  #makes it a time series
-  tp <- turnpoints(ts_y)  # analysing turning points (peaks or pits)
-  
-  points(dens_band$x[tp$tppos], dens_band$y[tp$tppos], col="red")
-  tab_pnts <- cbind(dens_band$x[tp$tppos], dens_band$y[tp$tppos])
-  tab_pnts_x <- tab_pnts[,1]
-  thresh_x <- tab_pnts_x < 0.7 & tab_pnts_x > 0
-  
-  threshold <- min(tab_pnts[thresh_x,1]) 
-  return(threshold)
-}
-#----------------------
-
 mainDir <- "define your directory where your Sentinel-2 data is stored"
 setwd(mainDir)
 outDir <- "define your directory where you want to save your output (land masks)"
@@ -76,7 +59,7 @@ for (i in 1:length(s2.folders)){
 
   hist_mndwi <- hist(mndwi)
   
-  #calculate threshold by finding local minima
+  #calculate threshold by finding local minima - function locmin() is stored in the separate file inside VesselDet_S2 folder
   minima <- locmin(mndwi)
  
   #apply threshold on the mndwi mask
