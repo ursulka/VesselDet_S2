@@ -1,0 +1,16 @@
+#-----Function for finding local minima in ndwi----------
+locmin <- function(band) 
+{
+  dens_band <- density(band)
+  ts_y <- ts(dens_band$y)  #makes it a time series
+  tp <- turnpoints(ts_y)  # analysing turning points (peaks or pits)
+  
+  points(dens_band$x[tp$tppos], dens_band$y[tp$tppos], col="red")
+  tab_pnts <- cbind(dens_band$x[tp$tppos], dens_band$y[tp$tppos])
+  tab_pnts_x <- tab_pnts[,1]
+  thresh_x <- tab_pnts_x < 0.7 & tab_pnts_x > 0
+  
+  threshold <- min(tab_pnts[thresh_x,1]) 
+  return(threshold)
+}
+#----------------------
