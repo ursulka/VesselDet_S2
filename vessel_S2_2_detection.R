@@ -10,12 +10,12 @@ require(raster)
 require(rgdal)
 require(sp)
 
-#rm(list=ls())
+#for this code to function you need to call gdal_polygonizeR.R function (added in the VesselDet_S2 list)
 
 mainDir <- "The directory where your landmasked images are stored"  
 outDir <- "The directory where you want to store your outputs" 
 
-#img input data is land mask 
+#img input data is land mask created in the previous step
 lm_List <- list.files(mainDir, pattern = "*_seamask.tif$", recursive = TRUE, full.names = TRUE)
 
 ptm <- proc.time()
@@ -28,34 +28,31 @@ for (i in 1:length(lm_List)){
   #load an image
   img <- stack(lm_List[i])
   #calculate vessel index on the image
-  #vessel index is a subtraction of NIR and R band - ni ok za gumjaste čolne 
-  #ni ok niti za svetle ladje na Qb posnetkih
-  
-  #testiraj kako bi se guma dala videti iz S2 imgjev, da bi izboljšali tale del
+  #vessel index is a subtraction of NIR and R band
   vess_indx <- (img[[4]] - img[[3]])
   #hist_vess_indx <- hist(vess_indx)
   #plot(hist_vess_indx)
   #writeRaster(vess_indx, filename = paste0(outDir, name, "vess_indx.tif"), format="GTiff", overwrite=TRUE)
   
-  #dodajamo poleg teh še vrednost if values of all 4 bands are higher than certain amount (piksli vode v vseh treh so manjši)
+  #to avoid loosing rubber and very bright boats from the image, which in the case of S-2 are not detected using only vessel index
+  #we apply an additional condition where values of all 4 bands are higher than certain threshold value of mean/standard deviation
   rasterRescale<-function(r){
     ((r-cellStats(r,"min"))/(cellStats(r,"max")-cellStats(r,"min")))
   }
   
-  r2<- rasterRescale(img) #to zna pozret ful veliko spomina, če je velik img
-  #writeRaster(r2, filename = paste0(outDir, name, "r2.tiff"), format="GTiff", overwrite = T)
-  #sešteješ vse rasterje skupaj oziroma vrednost vsakega piksla skozi vse bande
+  r2<- rasterRescale(img) #this step can take a lot of memory in the case of a large image
+
+  #sum of all the bands in a certain pixel
   img_tog <- sum(r2)
-  
   #plot(img_tog)
   #writeRaster(img_tog, filename = paste0(outDir, name, "_testS2_okt.tif"), format="GTiff", overwrite=TRUE)
-  #cellStat - statistics of the cells of a raster object!!! daj v zapiske o R
+  
+  #cellStat - statistics of the cells of a raster object!
   img.mean <- cellStats(img_tog, 'mean', na.rm=TRUE) #izračunamo mean vsem pikslom, je memory safe
   #drugi način (ki ni kao memory safe) je mean(values(img_tog), na.rm = T)
   img.sd <- cellStats(img_tog, 'sd', na.rm=TRUE)
   
-  img.meja <- img.mean + 0.55*img.sd #pragmatično je to nekako najboljša meja
-  #za GE je img.sd,  za S2 0.55*img.sd, za IK 0.85 lmp 2003
+  img.meja <- img.mean + 0.55*img.sd #0.55 is pragmatically selected threshold for S-2 images
 
   #Sedaj stvar deluje za vse senzorje enako, saj išče mejo samodejno in je drugačna za vsak img posebej
   vessels <- (vess_indx > 0) | (img_tog > img.meja) #2.4 #3.3 #2.78
@@ -302,13 +299,4 @@ for (i in 1:length(lm_List)){
   }
 
 proc.time() - ptm
-
-
-
-
-
-## Define the function--------------------------
-
-
-#----------------------------------
 
