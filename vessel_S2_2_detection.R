@@ -40,50 +40,41 @@ for (i in 1:length(lm_List)){
     ((r-cellStats(r,"min"))/(cellStats(r,"max")-cellStats(r,"min")))
   }
   
-  r2<- rasterRescale(img) #this step can take a lot of memory in the case of a large image
+  r2<- rasterRescale(img) #this step can take a lot of memory when processing a large image
 
   #sum of all the bands in a certain pixel
   img_tog <- sum(r2)
   #plot(img_tog)
   #writeRaster(img_tog, filename = paste0(outDir, name, "_testS2_okt.tif"), format="GTiff", overwrite=TRUE)
   
-  #cellStat - statistics of the cells of a raster object!
-  img.mean <- cellStats(img_tog, 'mean', na.rm=TRUE) #izračunamo mean vsem pikslom, je memory safe
-  #drugi način (ki ni kao memory safe) je mean(values(img_tog), na.rm = T)
-  img.sd <- cellStats(img_tog, 'sd', na.rm=TRUE)
+  #cellStat - statistics of the cells of a raster object
+  img.mean <- cellStats(img_tog, 'mean', na.rm=TRUE) #calculation of mean of all the pixels (memory safe)
+  img.sd <- cellStats(img_tog, 'sd', na.rm=TRUE) #calculation of standard deviation of all the pixels (memory safe)
   
   img.meja <- img.mean + 0.55*img.sd #0.55 is pragmatically selected threshold for S-2 images
 
-  #Sedaj stvar deluje za vse senzorje enako, saj išče mejo samodejno in je drugačna za vsak img posebej
-  vessels <- (vess_indx > 0) | (img_tog > img.meja) #2.4 #3.3 #2.78
-  #stestiraj še za ostale senorje, ampak po moje bi moralo delati!!!!
+  #the condition is different for every img separately
+  vessels <- (vess_indx > 0) | (img_tog > img.meja)
   #plot(vessels)
   #writeRaster(vessels, filename = paste0(outDir, name, "_vessels.tif"), format="GTiff", overwrite=TRUE)
   
-  rm(r2, vess_indx) #ta dva sta velika in jo zbrišem, da ne kradeta spomin
+  rm(r2, vess_indx) #these two variables are large, therefore they shoudl be removed
   
-  #Izboljšamo masko plovil (popraviti LUKNJE v segmentih), da ne pride do napak pri kasnejših fazah!!!
+  #Enhancing vessel mask to avoid errors in the further steps
   vessels_smooth <- focal(vessels, w = matrix(1,3,3), fun = max, pad = TRUE)
   vessels_smooth_fin <- focal(vessels_smooth, w = matrix(1,3,3), fun = min, pad = TRUE)
   #plot(vessels_smooth_fin)
   
-  writeRaster(vessels_smooth_fin, filename = paste0(outDir, name, "_poss_vessel2.tif"), format="GTiff", overwrite=TRUE)
+  writeRaster(vessels_smooth_fin, filename = paste0(outDir, name, "_poss_vessel.tif"), format="GTiff", overwrite=TRUE)
 
   ################Obtain vector polygons from raster of possible vectors
    
-  #FIRST OPTION _ time consuming calculation from raster to vector (NE DELA za prevelike imgje - S2 npr)
-  #current.time <- Sys.time()
-  #vect_vess <- rasterToPolygons(vessels, dissolve = TRUE)
-  #Sys.time() - current.time
-  
-  #SECOND OPTION - short calculation - BUT needs gdal_polygonize.py on your computer
-  #funkcija potegnjena iz https://johnbaumgartner.wordpress.com/2012/07/26/getting-rasters-into-shape-from-r/
+  #Fast polygonisation calculation - BUT needs gdal_polygonize.py
+  #Function  downloaded from https://johnbaumgartner.wordpress.com/2012/07/26/getting-rasters-into-shape-from-r/
   system.time(vect_vessels <- gdal_polygonizeR(vessels_smooth_fin, outshape = paste0(outDir, name, "_vector_temp")))
-  # za sentinel2 velik file poligonizira v 15ih sekundah! 
-  #vektorski in rasterski sloj imata sedaj enako projekcijo in torej extent()
-  #POMEMBNO! če datoteka z istim imenom že obstaja bo koda prekinjena! briši sproti!
+  #vector and raster layer has same spatial extent (projection)
   
-  #using a zero width buffer cleans up many topology problems in R (da se ne pojavljajo napake!)
+  #using a zero width buffer cleans up many topology problems
   vect_vessels <- gBuffer(vect_vessels, byid=TRUE, width=0)
   
   #calculate area of shape polygons 
@@ -91,44 +82,18 @@ for (i in 1:length(lm_List)){
   #assign area values to the polygon you are interested in
   vect_vessels@data$area <- vess_area
   
-  #define minimal and maximal value for different sensors
-  #glej tisti del o najmanjših možnih površinah za zaznavo enega konkretnega objekta v preglednem članku
+  #define minimal and maximal area value for different sensors
+  #The condition for ideal max and min vessel size are mentioned in the article
+  res <- 10 
+  min.val <- (res^2 * 3) #m2 (after Bannister and Neyland, 2015)
+  max.val <- 30000  #to potrebno še stestirat!
   
-  # LOČJIVOST JE RAZLIČNA ZA VSAK SENZOR POSEBEJ! DOLOČI ŠE ZA OSTALE SENZORJE!!!!
-  #različno poimenovanje glede na senozor
-  if (grepl("S2", lm_List[i])) {  #za vse  S2 posnetke
-    res <- 10 #za S- 2
-  } else if (grepl("ge_|wv2_", lm_List[i])){    #za vse ostale VHR senzorje
-    res <- 0.5
-  } else if (grepl("ik_", lm_List[i])){
-    res <- 1
-  } else if (grepl("qcbd_", lm_List[i])){
-    res <- 0.75
-  } else print("Used sensor resolution is not known!")
+  print(paste0("minimal vessel size is ", min.val, "m2"))
+  print(paste0("maximal vessel size is ", max.val, "m2")) 
+  #very big ships are detected per partes, cause their surface is very heterogene
   
-  print(paste0("Ločljivost obravnavanega senzorja je ", res, "m"))
-  
-  if (grepl("S2", lm_List[i])) {  #za vse  S2 posnetke
-    min.val <- (res^2 * 3) #m2 (po Bannister and Neyland, 2015)
-    max.val <- 30000  #to potrebno še stestirat!
-  } else if (grepl("ge_|wv2_", lm_List[i])){    #za vse ostale VHR senzorje
-    min.val <- (res^2 * 5) #to sem določila empirično
-    max.val <- 400 #to tudi
-  } else if (grepl("ik_", lm_List[i])){
-    min.val <- (res^2 * 4) #to sem določila empirično
-    max.val <- 1000
-  } else if (grepl("qcbd_", lm_List[i])){
-    min.val <- (res^2 * 4) #to sem določila empirično
-    max.val <- 750
-  } else print("Used sensor is not known!")
-  print(paste0("minimalna površina plovil je ", min.val, "m2"))
-  print(paste0("maximalna površina plovil je ", max.val, "m2"))
-  #max.val mora biti manjše, kot je površina največje ladje če ne je preveč napak 
-  #tudi če zazna velike ladje, jih zazna delno po navadi, ker so njihove površine zelo heterogene
-  #pri prevelikih objektih pa je itak toliko napak, da ni vredno
-  
-  #remove all those polygons with DN value = 0 (potrebujemo samo tiste z value = 1 - possible ship)
-  #remove all the polygons that are smaller tham ...m2 and bigger than ...m2 - ODVISNO OD SENZORJA IN NJEGOVE LOČLJIVOSTI
+  #remove all those polygons with DN value = 0 (we focus only on those with the value = 1 - possible ship)
+  #remove all the polygons that are smaller than min and bigger than max values
   vect_vessels <- vect_vessels[(vect_vessels@data$area > min.val &
                                   vect_vessels@data$area < max.val & 
                                   vect_vessels@data$DN == 1),]
@@ -136,7 +101,11 @@ for (i in 1:length(lm_List)){
   
   print(paste0("Image ", i, " includes ", length(vect_vessels), " possible vessel objects."))
   
-  #set angle sequence
+  #------------------------------
+  #CALCULATE geometrical attributes of all obtained polygons
+  
+  #Calculate position, heading, width, length
+  #set angle sequence 
   set_angle <- 10 # set angle sequence - for how much it should move between 0-180
   angle <- seq (0, 179, set_angle)
   #set empty matrix where calculated angles will be later stored
@@ -146,29 +115,20 @@ for (i in 1:length(lm_List)){
   mat_res2 <- matrix(nrow=1, ncol=5)
   colnames(mat_res2) <- c("x", "y", "heading", "length", "width")
   
-  #create a buffer geometry - popravi poligone (v prvi različici so se mi podvajali)
-  #polygone1 <- gBuffer(vect_vessels, byid=TRUE, width=0)
-  #polygone2 <- gBuffer(vect_vessels, byid=TRUE, width=0)
-  #vec_ves <- gIntersection(Polygone1, Polygone2, byid=TRUE)
-
-  #add ID column to the vector table (kako preprosto!)
+  #add ID column to the vector table
   vect_vessels@data$idloop <- seq(1,length(vect_vessels),1)
   #head(vect_vessels@data)
-  #rm(i)
   
   for (j in 1:length(vect_vessels)){
-  #for (j in 17:26){ # ZA TEST!   
-    #j=168
+    
     vect_vess.p <- vect_vessels[(vect_vessels@data$idloop%in%j),]  #so it selects only one polygon out of many
     plot(vect_vess.p)
     
-    #Calculate vessel polygon width and beam
+    #Calculate vessel polygon width and length
     #add centroid to the layer
     vec_centr <- gCentroid(vect_vess.p, byid = TRUE) #vec_ves_s
     points(vec_centr)  #plot points
-    
-    #k = 2
-    #angle = 25
+
     for (k in 1:length(angle)){
       angle2 <- angle[k]
       
@@ -199,12 +159,6 @@ for (i in 1:length(lm_List)){
       plot(transect, col = "blue", add=TRUE)
     
       #calculate the length of the intersected line
-      #dolga pot
-      #x_length <- transect@bbox[1,1]-transect@bbox[1,2]
-      #y_length <- transect@bbox[2,1]-transect@bbox[2,2]
-      #length_tr1 <- abs(sqrt(x_length^2 + y_length^2))
-      
-      #kratka pot
       length_tr1 <- gLength(transect)
       
       mat_res[k,] <- c(angle2, length_tr1)
@@ -215,7 +169,6 @@ for (i in 1:length(lm_List)){
     #find max value and assign its length
     mat_res1 <- c(mat_res[which.max(mat_res[,2]),1], max(mat_res[,2]))
     #plot only the longest line in the segment
-    #iz Centroida (ki ima znane koordinate) bi s pomočjo razdalje in kota izračunala robne koordinate
     
     #make perpendicular line on the above one
     mat_res.p <- mat_res1[1] + 90
@@ -244,11 +197,6 @@ for (i in 1:length(lm_List)){
     plot(transect2, col = "red", add = TRUE )
    
     #calculate the length of the horizontal intersected line
-    #dolga pot
-    #x_length <- transect2@bbox[1,1]-transect2@bbox[1,2]
-    #y_length <- transect2@bbox[2,1]-transect2@bbox[2,2]
-    #length_tr1 <- abs(sqrt(x_length^2 + y_length^2))
-    #kratka pot, ne vedno pravilna, zakaj???
     length_tr2 <- gLength(transect2)
     
     mat_res2 <- c(vec_centr@coords[1,1], vec_centr@coords[1,2], mat_res1, length_tr2)
@@ -258,12 +206,7 @@ for (i in 1:length(lm_List)){
 
   }
   
-  #pripiši heading, length in width v atributno tabelo 
-  #heading
-  #vect_vessels@data$heading <- lapply(fin_res, "[", "heading")
-  #to je super, če bi ohranila list, ampak list noče pripisati v att tabelo kasneje v fazi writeOGR
- 
-  #x, y, heading, length and width
+  #assign polygon position (x, y), heading, length and width into an attribute table 
   fin_res.m <- matrix(unlist(fin_res), ncol = 5, byrow = T)
   vect_vessels@data$x <- fin_res.m[,1]
   vect_vessels@data$y <- fin_res.m[,2]
@@ -279,10 +222,10 @@ for (i in 1:length(lm_List)){
   head(vect_vessels)
   
   #calculate spectral values (mean) for all polygons
-  ####to dela RES dolgo!  Kako bi se to dalo pohitriti? glej tiling mogoče? paralelizacija!
+  ####time consuming
   system.time(val <- extract(img, vect_vessels, fun=mean)) 
-  #ČE NE DELA: pastecs package ima isto ime ene funkcije, zato lahko pride tukaj do napake!
-  # v tem primeru samo odtipkaj .rs.unloadPackage("pastecs"), da odinštaliraš tisti paket
+  #If not working: pastecs package has a function of the same name, might call an error
+  #to solve this type .rs.unloadPackage("pastecs") in the command line, to uninstall pastecs package
   
   head(val)
   #assign those values as separate columns to the original vessel shapefile
