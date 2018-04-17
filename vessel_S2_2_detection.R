@@ -1,29 +1,27 @@
-#Algorithm for automatic vessel detection which takes land mask image as an input and returns shapefile polygons of 
-#potential vessels with a set of attributes (in a batch mode).
+#' @title Vessel detection module from Sentinel-2 landmasked images (batch mode)
+#' @description Algorithm for automatic vessel detection which takes land mask image as an input and returns shapefile polygons of 
+#potential vessels with a set of attributes (in a batch mode). 
+#' @author Ursa Kanjir
+#' @date "'r format(Sys.Date())'"
+#' @return a shapefile polygons with a set of calculated geometrical and spectral attributes 
+
 require(rgeos)
 require(raster)
 require(rgdal)
 require(sp)
-#require(spatstat)
 
-library(doParallel)
+#rm(list=ls())
 
-# Urša, januar 2016 Karlsruhe in feb 2017 - feb 2018 Ljubljana
-
-rm(list=ls())
-
-mainDir <- "d:/DoKtoRaT/Work/Vessel detection/Data/" #tukaj so shranjeni vsi VHR rezultati 
-outDir <- "d:/DoKtoRaT/output/vessel_detection/"
+mainDir <- "The directory where your landmasked images are stored"  
+outDir <- "The directory where you want to store your outputs" 
 
 #img input data is land mask 
-#lm_List <- list.files(mainDir, pattern = "*_seamask.tif$", recursive = TRUE, full.names = TRUE)
-lm_List <- list.files(mainDir, pattern = "*_seamask_small.tif$", recursive = TRUE, full.names = TRUE) #za Sentinel-2, ker so porezani!
+lm_List <- list.files(mainDir, pattern = "*_seamask.tif$", recursive = TRUE, full.names = TRUE)
 
 ptm <- proc.time()
 
 for (i in 1:length(lm_List)){
-  #i=1
-  
+
   name_full <- sub(".*/", "", lm_List[i])
   name <- substr(name_full, 1, nchar(name_full) - 4)
   name
@@ -311,39 +309,6 @@ proc.time() - ptm
 
 ## Define the function--------------------------
 
-gdal_polygonizeR <- function(x, outshape=NULL, gdalformat = 'ESRI Shapefile',
-                             pypath=NULL, readpoly=TRUE, quiet=TRUE) {
-  if (isTRUE(readpoly)) require(rgdal)
-  if (is.null(pypath)) {
-    pypath <- Sys.which('D:/R/python_functions/gdal_polygonize.py')  #ta file je tisti, ki ga je Maja v Pythonu spreminjala! (ko so bili problemi z osgeo)
-  
-  }
-  if (!file.exists(pypath)) stop("Can't find gdal_polygonize.py on your system.")  
-  owd <- getwd()
-  on.exit(setwd(owd))
-  setwd(dirname(pypath))
-  if (!is.null(outshape)) {
-    outshape <- sub('\\.shp$', '', outshape)
-    f.exists <- file.exists(paste(outshape, c('shp', 'shx', 'dbf'), sep='.'))
-    if (any(f.exists))
-      stop(sprintf('File already exists: %s',
-                   toString(paste(outshape, c('shp', 'shx', 'dbf'),
-                                  sep='.')[f.exists])), call.=FALSE)
-  } else outshape <- tempfile()
-  if (is(x, 'Raster')) {
-    require(raster)
-    writeRaster(x, {f <- tempfile(fileext='.tif')})
-    rastpath <- normalizePath(f)
-  } else if (is.character(x)) {
-    rastpath <- normalizePath(x)
-  } else stop('x must be a file path (character string), or a Raster object.')
-  system2('python', args=(sprintf('"%1$s" "%2$s" -f "%3$s" "%4$s.shp"',
-                                  pypath, rastpath, gdalformat, outshape)))
-  if (isTRUE(readpoly)) {
-    shp <- readOGR(dirname(outshape), layer = basename(outshape), verbose=!quiet)
-    return(shp)
-  }
-  return(NULL)
-}
+
 #----------------------------------
 
