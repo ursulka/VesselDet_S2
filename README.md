@@ -1,5 +1,5 @@
 # VesselDet_S2
-Vessel detection and classification algorithm from Sentinel-2 images in R
+Vessel detection and classification algorithm from Sentinel-2 images in R. The algorithm is provided to the scientific community for non-commercial and non-military purposes.
 
 "VesselDet_S" is an open-source R package to detect and classify vessels using Sentinel-2 optical images (Level 1C). 
 
